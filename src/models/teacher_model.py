@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-from src.database import Database
-
 
 class TeacherModel:
 
-    def __init__(self, database: Database) -> None:
-        self.database = database
+    def __init__(
+        self,
+        teacher_id: int | None,
+        name: str,
+        phone: str,
+        email: str,
+        security_q: str,
+        security_a: str,
+        password: str,
+    ) -> None:
+        self.teacher_id = teacher_id
+        self.name = name
+        self.phone = phone
+        self.email = email
+        self.security_q = security_q
+        self.security_a = security_a
+        self.password = password
 
-    def authenticate(self, username_or_email: str, password: str) -> bool:
-        query = """
-            SELECT Teacher_id
-            FROM Teacher
-            WHERE (Email = %s OR Name = %s) AND Password = %s
-            LIMIT 1
-        """
-        rows = self.database.execute_query(
-            query,
-            (username_or_email, username_or_email, password),
-        )
-        return len(rows) > 0

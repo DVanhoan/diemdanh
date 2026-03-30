@@ -3,16 +3,22 @@ from __future__ import annotations
 from datetime import datetime
 import tkinter as tk
 from pathlib import Path
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from typing import Callable
 
-from numpy.distutils.misc_util import default_text
 
 try:
-    from PIL import Image, ImageTk  # type: ignore
-except Exception:  # noqa: BLE001
+    from PIL import Image, ImageTk
+except Exception:
     Image = None
     ImageTk = None
+
+try:
+    from tkcalendar import DateEntry
+except Exception:
+    DateEntry = None
+
+from src.controllers.class_controller import ClassController
 
 
 class StudentView(tk.Frame):
@@ -31,11 +37,12 @@ class StudentView(tk.Frame):
     def __init__(
         self,
         master: tk.Tk,
-        on_save: Callable[[], None],
-        on_update: Callable[[], None],
-        on_delete: Callable[[], None],
-        on_refresh: Callable[[], None],
-        on_capture: Callable[[], None],
+        on_save: Callable[..., object],
+        on_update: Callable[..., object],
+        on_delete: Callable[..., object],
+        on_refresh: Callable[..., object],
+        on_search: Callable[..., object],
+        on_capture: Callable[..., object],
         on_back: Callable[[], None],
         assets_dir: Path,
     ) -> None:
@@ -45,6 +52,7 @@ class StudentView(tk.Frame):
         self.on_update = on_update
         self.on_delete = on_delete
         self.on_refresh = on_refresh
+        self.on_search = on_search
         self.on_capture = on_capture
         self.on_back = on_back
 
@@ -78,6 +86,12 @@ class StudentView(tk.Frame):
 
         self._configure_styles()
 
+        # Use controller to access class data/CRUD (View -> Controller -> Service).
+        self._class_controller = ClassController()
+
+        # Cached mapping for class combobox.
+        self._class_label_to_id: dict[str, str] = {}
+
         self.canvas = tk.Canvas(self, highlightthickness=0, bd=0, bg=self.FALLBACK_BG)
         self.canvas.pack(fill="both", expand=True)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
@@ -85,6 +99,11 @@ class StudentView(tk.Frame):
         self._build_top_widgets()
         self._build_content()
         self._start_clock()
+
+        # Keep a local copy of currently displayed students (for select-fill).
+        self._students_cache: list[object] = []
+
+        # (services already initialized above)
 
     def _resolve_background_path(self) -> Path | None:
         candidates = [
@@ -202,8 +221,6 @@ class StudentView(tk.Frame):
         self._build_right_section(right)
 
     def _build_left_section(self, parent: tk.Frame) -> None:
-        # Use a full-grid layout so the middle info frame can expand and
-        # buttons stay pinned to the bottom.
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(0, weight=0)  # title
         parent.grid_rowconfigure(1, weight=0)  # course
@@ -272,7 +289,6 @@ class StudentView(tk.Frame):
         )
         info.grid(row=2, column=0, sticky="nsew")
 
-        # Equal expansion for the two input columns.
         info.grid_columnconfigure(0, weight=0)
         info.grid_columnconfigure(1, weight=1)
         info.grid_columnconfigure(2, weight=0)
@@ -294,7 +310,31 @@ class StudentView(tk.Frame):
             _mk_entry(r, 3, v2, padx=(8, 0))
 
         _row(0, "ID Học sinh:", self.student_id_var, "Tên Học sinh:", self.name_var)
-        _row(1, "Lớp học:", self.class_var, "CMND:", self.id_card_var)
+        # Row: Class as Combobox (populated from DB) + ID card
+        tk.Label(info, text="Lớp học:", bg=self.PANEL_BG, font=font_label_bold).grid(
+            row=1, column=0, sticky="w", pady=8
+        )
+        class_labels = self._refresh_class_combobox_values()
+        self.class_cb = ttk.Combobox(
+            info,
+            state="readonly" if class_labels else "normal",
+            style="Student.TCombobox",
+        )
+        self.class_cb.configure(values=tuple(class_labels))
+        self.class_cb.grid(row=1, column=1, sticky="ew", pady=8, padx=(8, 18), ipady=3)
+
+        def _on_class_selected(_: object) -> None:
+            label = self.class_cb.get().strip()
+            class_id = self._class_label_to_id.get(label)
+            if class_id is not None:
+                self.class_var.set(class_id)
+
+        self.class_cb.bind("<<ComboboxSelected>>", _on_class_selected)
+
+        tk.Label(info, text="CMND:", bg=self.PANEL_BG, font=font_label_bold).grid(
+            row=1, column=2, sticky="w", pady=8
+        )
+        _mk_entry(1, 3, self.id_card_var, padx=(8, 0))
 
         tk.Label(info, text="Giới tính:", bg=self.PANEL_BG, font=font_label_bold).grid(
             row=2, column=0, sticky="w", pady=8
@@ -310,7 +350,19 @@ class StudentView(tk.Frame):
         tk.Label(info, text="Ngày sinh:", bg=self.PANEL_BG, font=font_label_bold).grid(
             row=2, column=2, sticky="w", pady=8
         )
-        _mk_entry(2, 3, self.dob_var, padx=(8, 0))
+        if DateEntry is not None:
+            dob_widget = DateEntry(
+                info,
+                textvariable=self.dob_var,
+                date_pattern="dd-mm-yyyy",
+                font=font_label,
+                background=self.ACTION_BLUE,
+                foreground="white",
+                borderwidth=1,
+            )
+            dob_widget.grid(row=2, column=3, sticky="ew", pady=8, padx=(8, 0), ipady=3)
+        else:
+            _mk_entry(2, 3, self.dob_var, padx=(8, 0))
 
         _row(3, "Email:", self.email_var, "SĐT:", self.phone_var)
 
@@ -378,16 +430,16 @@ class StudentView(tk.Frame):
 
         btn_cfg_action = dict(btn_cfg, pady=6)
 
-        tk.Button(action_row, text="Lưu", command=self.on_save, **btn_cfg_action).grid(
+        tk.Button(action_row, text="Lưu", command=self._handle_save, **btn_cfg_action).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
-        tk.Button(action_row, text="Sửa", command=self.on_update, **btn_cfg_action).grid(
+        tk.Button(action_row, text="Sửa", command=self._handle_update, **btn_cfg_action).grid(
             row=0, column=1, sticky="ew", padx=4, pady=4
         )
-        tk.Button(action_row, text="Xóa", command=self.on_delete, **btn_cfg_action).grid(
+        tk.Button(action_row, text="Xóa", command=self._handle_delete, **btn_cfg_action).grid(
             row=0, column=2, sticky="ew", padx=4, pady=4
         )
-        tk.Button(action_row, text="Làm mới", command=self.on_refresh, **btn_cfg_action).grid(
+        tk.Button(action_row, text="Làm mới", command=self._handle_refresh, **btn_cfg_action).grid(
             row=0, column=3, sticky="ew", padx=4, pady=4
         )
 
@@ -405,11 +457,10 @@ class StudentView(tk.Frame):
         )
 
     def _build_right_section(self, parent: tk.Frame) -> None:
-        # Fonts consistent with the left section.
         font_label = ("Segoe UI", 10)
         font_label_bold = ("Segoe UI", 10, "bold")
 
-        # --- Student search block (keep existing behavior, slight spacing upgrade) ---
+        # --- Student search block ---
         search_group = tk.LabelFrame(
             parent,
             text="Hệ thống Tìm kiếm",
@@ -446,7 +497,7 @@ class StudentView(tk.Frame):
         tk.Button(
             search_group,
             text="Tìm kiếm",
-            command=lambda: None,
+            command=self._handle_search,
             bg=self.ACTION_BLUE,
             activebackground=self.ACTION_BLUE_ACTIVE,
             fg="white",
@@ -461,7 +512,7 @@ class StudentView(tk.Frame):
         tk.Button(
             search_group,
             text="Xem tất cả",
-            command=lambda: None,
+            command=self._handle_show_all,
             bg=self.ACTION_BLUE,
             activebackground=self.ACTION_BLUE_ACTIVE,
             fg="white",
@@ -518,7 +569,9 @@ class StudentView(tk.Frame):
         table_wrap.columnconfigure(0, weight=1)
         table_wrap.rowconfigure(0, weight=1)
 
-        # --- Class management block (requested layout) ---
+        self.student_tree.bind("<<TreeviewSelect>>", self._on_student_select)
+
+        # --- Class management block ---
         class_group = tk.LabelFrame(
             parent,
             text="Quản lý lớp học",
@@ -532,31 +585,32 @@ class StudentView(tk.Frame):
 
         class_body = tk.Frame(class_group, bg=self.PANEL_BG)
         class_body.grid(row=0, column=0, sticky="nsew")
-        class_group.grid_columnconfigure(0, weight=1)
         class_group.grid_rowconfigure(0, weight=1)
+        class_group.grid_columnconfigure(0, weight=1)
 
-        # Left ~40%, Right ~60%
-        class_body.grid_columnconfigure(0, weight=2, uniform="class_split")
-        class_body.grid_columnconfigure(1, weight=3, uniform="class_split")
+        # Grid 1x2: left (inputs) + right (table).
+        # Use weights so the table naturally gets more space, but keep both responsive.
         class_body.grid_rowconfigure(0, weight=1)
+        class_body.grid_columnconfigure(0, weight=2)  # ~40%
+        class_body.grid_columnconfigure(1, weight=3)  # ~60%
 
-        class_left = tk.Frame(class_body, bg=self.PANEL_BG)
-        class_right = tk.Frame(class_body, bg=self.PANEL_BG)
-        class_left.grid(row=0, column=0, sticky="nsew")
-        class_right.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        left = tk.Frame(class_body, bg=self.PANEL_BG)
+        right = tk.Frame(class_body, bg=self.PANEL_BG)
+        left.grid(row=0, column=0, sticky="nsew")
+        right.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
-        # Left column layout: search row, inputs, spacer, buttons
-        class_left.grid_columnconfigure(0, weight=1)
-        class_left.grid_rowconfigure(0, weight=0)
-        class_left.grid_rowconfigure(1, weight=0)
-        class_left.grid_rowconfigure(2, weight=1)
-        class_left.grid_rowconfigure(3, weight=0)
+        # Left side: search row + input area + button row
+        left.grid_columnconfigure(0, weight=1)
+        left.grid_rowconfigure(0, weight=0)
+        left.grid_rowconfigure(1, weight=0)
+        left.grid_rowconfigure(2, weight=1)
+        left.grid_rowconfigure(3, weight=0)
 
-        # Search row (one line)
-        search_row = tk.Frame(class_left, bg=self.PANEL_BG)
+        # Search Row (one single row, responsive)
+        search_row = tk.Frame(left, bg=self.PANEL_BG)
         search_row.grid(row=0, column=0, sticky="ew")
         search_row.grid_columnconfigure(0, weight=0)
-        search_row.grid_columnconfigure(1, weight=1)
+        search_row.grid_columnconfigure(1, weight=1)  # entry expands
         search_row.grid_columnconfigure(2, weight=0)
         search_row.grid_columnconfigure(3, weight=0)
 
@@ -564,20 +618,20 @@ class StudentView(tk.Frame):
             search_row,
             values=["Lớp"],
             state="readonly",
-            width=8,
+            width=7,
             style="Student.TCombobox",
         ).grid(row=0, column=0, sticky="w", pady=4, ipady=3)
+
         tk.Entry(
             search_row,
             textvariable=self.class_search_var,
+            width=15,
             font=font_label,
             bd=1,
             relief="solid",
         ).grid(row=0, column=1, sticky="ew", padx=8, pady=4, ipady=3)
-        tk.Button(
-            search_row,
-            text="Tìm kiếm",
-            command=lambda: None,
+
+        search_btn_cfg = dict(
             bg=self.ACTION_BLUE,
             activebackground=self.ACTION_BLUE_ACTIVE,
             fg="white",
@@ -588,89 +642,100 @@ class StudentView(tk.Frame):
             padx=12,
             pady=4,
             cursor="hand2",
-        ).grid(row=0, column=2, sticky="ew", padx=(0, 6), pady=4)
-        tk.Button(
-            search_row,
-            text="Xem tất cả",
-            command=lambda: None,
-            bg=self.ACTION_BLUE,
-            activebackground=self.ACTION_BLUE_ACTIVE,
-            fg="white",
-            activeforeground="white",
-            font=font_label_bold,
+        )
+        # Keep buttons compact so they don't force overflow on small widths.
+        tk.Button(search_row, text="Tìm kiếm", command=lambda: None, **search_btn_cfg).grid(
+            row=0, column=2, sticky="e", padx=(0, 6), pady=4
+        )
+        tk.Button(search_row, text="Xem tất cả", command=lambda: None, **search_btn_cfg).grid(
+            row=0, column=3, sticky="e", pady=4
+        )
+
+        # Input Area
+        input_area = tk.Frame(left, bg=self.PANEL_BG)
+        input_area.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        input_area.grid_columnconfigure(0, weight=0)
+        input_area.grid_columnconfigure(1, weight=1)
+
+        tk.Label(input_area, text="Lớp học:", bg=self.PANEL_BG, font=font_label_bold).grid(
+            row=0, column=0, sticky="w", pady=10
+        )
+        tk.Entry(
+            input_area,
+            textvariable=self.class_id_var,
+            font=font_label,
             bd=1,
             relief="solid",
-            padx=12,
-            pady=4,
-            cursor="hand2",
-        ).grid(row=0, column=3, sticky="ew", pady=4)
+        ).grid(row=0, column=1, sticky="ew", padx=(8, 0), pady=10, ipady=4)
 
-        # Inputs
-        inputs = tk.Frame(class_left, bg=self.PANEL_BG)
-        inputs.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        inputs.grid_columnconfigure(0, weight=0)
-        inputs.grid_columnconfigure(1, weight=1)
-
-        tk.Label(inputs, text="Lớp học:", bg=self.PANEL_BG, font=font_label_bold).grid(
-            row=0, column=0, sticky="w", pady=6
+        tk.Label(input_area, text="Tên lớp học:", bg=self.PANEL_BG, font=font_label_bold).grid(
+            row=1, column=0, sticky="w", pady=10
         )
-        tk.Entry(inputs, textvariable=self.class_id_var, font=font_label, bd=1, relief="solid").grid(
-            row=0, column=1, sticky="ew", pady=6, padx=(8, 0), ipady=3
-        )
+        tk.Entry(
+            input_area,
+            textvariable=self.class_name_var,
+            font=font_label,
+            bd=1,
+            relief="solid",
+        ).grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=10, ipady=4)
 
-        tk.Label(inputs, text="Tên lớp học:", bg=self.PANEL_BG, font=font_label_bold).grid(
-            row=1, column=0, sticky="w", pady=6
-        )
-        tk.Entry(inputs, textvariable=self.class_name_var, font=font_label, bd=1, relief="solid").grid(
-            row=1, column=1, sticky="ew", pady=6, padx=(8, 0), ipady=3
-        )
+        # Spacer to keep buttons at bottom of left area
+        tk.Frame(left, bg=self.PANEL_BG).grid(row=2, column=0, sticky="nsew")
 
-        # Spacer
-        tk.Frame(class_left, bg=self.PANEL_BG).grid(row=2, column=0, sticky="nsew")
 
-        # Buttons (uniform, yellow)
-        btn_row = tk.Frame(class_left, bg=self.PANEL_BG)
-        btn_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        for c in range(4):
-            btn_row.grid_columnconfigure(c, weight=1, uniform="class_actions")
+        btn_row = tk.Frame(left, bg=self.PANEL_BG)
+        btn_row.grid(row=3, column=0, sticky="ew")
+        for c in range(2):
+            btn_row.grid_columnconfigure(c, weight=1, uniform="class_btns")
 
-        btn_cfg = dict(
-            command=lambda: None,
+        class_btn_cfg = dict(
             bg=self.ACTION_YELLOW,
             activebackground=self.ACTION_YELLOW_ACTIVE,
             fg="#1F1F1F",
-            font=font_label_bold,
+            font=("Segoe UI", 10, "bold"),
             bd=1,
             relief="solid",
             pady=6,
             cursor="hand2",
         )
-        for idx, text in enumerate(["Thêm mới", "Xóa", "Cập nhật", "Làm mới"]):
-            tk.Button(btn_row, text=text, **btn_cfg).grid(row=0, column=idx, sticky="ew", padx=4, pady=2)
+        btn_texts = ["Thêm mới", "Xóa", "Cập nhật", "Làm mới"]
+        btn_cmds = [self._handle_class_create, self._handle_class_delete, self._handle_class_update, self._handle_class_refresh]
+        for idx, text in enumerate(btn_texts):
+            r = idx // 2
+            c = idx % 2
+            tk.Button(btn_row, text=text, command=btn_cmds[idx], **class_btn_cfg).grid(
+                row=r, column=c, sticky="ew", padx=4, pady=2
+            )
 
-        # Right column: class table
-        class_right.grid_columnconfigure(0, weight=1)
-        class_right.grid_columnconfigure(1, weight=0)
-        class_right.grid_rowconfigure(0, weight=1)
+        # Right side: Treeview
+        right.grid_rowconfigure(0, weight=1)
+        right.grid_columnconfigure(0, weight=1)
+        right.grid_columnconfigure(1, weight=0)
 
         class_cols = ("class_id", "class_name")
-        # Height balanced against left inputs + buttons.
         self.class_tree = ttk.Treeview(
-            class_right,
+            right,
             columns=class_cols,
             show="headings",
-            height=8,
+            height=9,
             style="Student.Treeview",
         )
-        self.class_tree.heading("class_id", text="Lớp học")
-        self.class_tree.heading("class_name", text="Tên")
-        self.class_tree.column("class_id", width=100, anchor="center")
-        self.class_tree.column("class_name", width=260, anchor="w")
+        self.class_tree.heading("class_id", text="Lớp học", anchor="center")
+        self.class_tree.heading("class_name", text="Tên", anchor="center")
 
-        class_scroll = ttk.Scrollbar(class_right, orient="vertical", command=self.class_tree.yview)
+        # Keep reasonable minimum widths, but allow stretching with the window.
+        self.class_tree.column("class_id", width=100, minwidth=80, anchor="center", stretch=False)
+        self.class_tree.column("class_name", width=200, minwidth=120, anchor="w", stretch=True)
+
+        class_scroll = ttk.Scrollbar(right, orient="vertical", command=self.class_tree.yview)
         self.class_tree.configure(yscrollcommand=class_scroll.set)
         self.class_tree.grid(row=0, column=0, sticky="nsew")
         class_scroll.grid(row=0, column=1, sticky="ns")
+
+        self.class_tree.bind("<<TreeviewSelect>>", self._on_class_select)
+
+        # Initial load
+        self._handle_class_refresh(show_message=False)
 
     def _on_canvas_configure(self, event: tk.Event) -> None:  # type: ignore[name-defined]
         self._last_size = (int(event.width), int(event.height))
@@ -739,3 +804,190 @@ class StudentView(tk.Frame):
         content_h = max(0, height - top_reserved - margin)
         self.canvas.coords(self._content_win, content_x, content_y)
         self.canvas.itemconfigure(self._content_win, width=content_w, height=content_h)
+
+    # ----------------- Student actions (handlers) -----------------
+    def _handle_save(self) -> None:
+        ok, msg = self.on_save(
+            self.student_id_var.get().strip(),
+            self.name_var.get().strip(),
+            self.class_var.get().strip(),
+            self.phone_var.get().strip(),
+            self.email_var.get().strip(),
+            self.year_var.get().strip(),
+            self.semester_var.get().strip(),
+            self.gender_var.get().strip(),
+            self.dob_var.get().strip(),
+            self.address_var.get().strip(),
+            self.photo_var.get().strip(),
+        )
+        self._show_result(ok, msg)
+        if ok:
+            self._clear_form()
+
+    def _handle_update(self) -> None:
+        ok, msg = self.on_update(
+            self.student_id_var.get().strip(),
+            self.name_var.get().strip(),
+            self.class_var.get().strip(),
+            self.phone_var.get().strip(),
+            self.email_var.get().strip(),
+            self.year_var.get().strip(),
+            self.semester_var.get().strip(),
+            self.gender_var.get().strip(),
+            self.dob_var.get().strip(),
+            self.address_var.get().strip(),
+            self.photo_var.get().strip(),
+        )
+        self._show_result(ok, msg)
+
+    def _handle_delete(self) -> None:
+        ok, msg = self.on_delete(self.student_id_var.get().strip())
+        self._show_result(ok, msg)
+        if ok:
+            self._clear_form()
+
+    def _handle_refresh(self) -> None:
+        ok, msg = self.on_refresh()
+        # refresh should not be an error popup
+        if msg:
+            self._show_result(ok, msg)
+        self._clear_form()
+
+    def _handle_search(self) -> None:
+        ok, msg = self.on_search(self.search_type_var.get().strip(), self.search_var.get().strip())
+        if self.search_var.get().strip():
+            self._show_result(ok, msg)
+
+    def _handle_show_all(self) -> None:
+        self.search_var.set("")
+        self.on_search(self.search_type_var.get().strip(), "")
+
+    def _on_student_select(self, _: object) -> None:
+        sel = self.student_tree.selection()
+        if not sel:
+            return
+        values = self.student_tree.item(sel[0], "values")
+        if len(values) >= 6:
+            self.student_id_var.set(values[0])
+            self.year_var.set(values[1])
+            self.semester_var.set(values[2])
+            self.name_var.set(values[3])
+            class_id = values[4]
+            self.class_var.set(class_id)
+            # Update displayed label in combobox if we have mapping.
+            try:
+                id_to_label = {v: k for k, v in getattr(self, "_class_label_to_id", {}).items()}
+                label = id_to_label.get(class_id)
+                if label:
+                    self.class_cb.set(label)
+                else:
+                    self.class_cb.set(class_id)
+            except Exception:
+                self.class_cb.set(class_id)
+            self.id_card_var.set(values[5])
+
+    def _clear_form(self) -> None:
+        self.student_id_var.set("")
+        self.name_var.set("")
+        self.class_var.set("")
+        self.gender_var.set("Nam")
+        self.dob_var.set("")
+        self.id_card_var.set("")
+        self.email_var.set("")
+        self.phone_var.set("")
+        self.address_var.set("")
+        self.photo_var.set("Không ảnh")
+
+    @staticmethod
+    def _show_result(ok: bool, msg: str) -> None:
+        if ok:
+            messagebox.showinfo("Thông báo", msg)
+        else:
+            messagebox.showerror("Lỗi", msg)
+
+    # ----------------- Table rendering -----------------
+    def set_table_rows(self, students: list[object]) -> None:
+        self._students_cache = students
+        self.student_tree.delete(*self.student_tree.get_children())
+        for st in students:
+            # StudentModel attributes in this project: student_id, year, semester, name, class_name, ...
+            st_id = getattr(st, "student_id", "")
+            year = getattr(st, "year", "") or ""
+            semester = getattr(st, "semester", "") or ""
+            name = getattr(st, "name", "") or ""
+            class_name = getattr(st, "class_name", "") or ""
+            id_card = getattr(st, "roll", "") or ""  # fallback: some UI shows CMND but schema uses Roll
+            self.student_tree.insert("", "end", values=(st_id, year, semester, name, class_name, id_card))
+
+    # ----------------- Class management (embedded) -----------------
+    def _refresh_class_combobox_values(self) -> list[str]:
+        self._class_label_to_id = {}
+        labels: list[str] = []
+        try:
+            classes = self._class_controller.list_all()
+            for c in classes:
+                class_id, class_name = c.class_id, c.name
+                label = class_name
+                if label in self._class_label_to_id and self._class_label_to_id[label] != class_id:
+                    label = f"{class_name} ({class_id})"
+                self._class_label_to_id[label] = class_id
+                labels.append(label)
+        except Exception:
+            pass
+        return labels
+
+    def _render_class_rows(self, rows: list[tuple[str, str]]) -> None:
+        if not hasattr(self, "class_tree"):
+            return
+        self.class_tree.delete(*self.class_tree.get_children())
+        for class_id, class_name in rows:
+            self.class_tree.insert("", "end", values=(class_id, class_name))
+
+    def _handle_class_refresh(self, *, show_message: bool = True) -> None:
+        rows = [(m.class_id, m.name) for m in self._class_controller.list_all()]
+        self._render_class_rows(rows)
+
+        # Update student class combobox values if it exists.
+        if hasattr(self, "class_cb"):
+            labels = self._refresh_class_combobox_values()
+            self.class_cb.configure(values=tuple(labels))
+
+        if show_message:
+            self._show_result(True, "Đã làm mới danh sách lớp.")
+
+    def _on_class_select(self, _: object) -> None:
+        sel = self.class_tree.selection()
+        if not sel:
+            return
+        values = self.class_tree.item(sel[0], "values")
+        if len(values) >= 2:
+            self.class_id_var.set(values[0])
+            self.class_name_var.set(values[1])
+
+    def _handle_class_create(self) -> None:
+        class_id = self.class_id_var.get().strip()
+        class_name = self.class_name_var.get().strip()
+        ok, msg = self._class_controller.create(class_id, class_name)
+        self._show_result(ok, msg)
+        if ok:
+            self._handle_class_refresh(show_message=False)
+
+    def _handle_class_update(self) -> None:
+        class_id = self.class_id_var.get().strip()
+        class_name = self.class_name_var.get().strip()
+        ok, msg = self._class_controller.update(class_id, class_name)
+        self._show_result(ok, msg)
+        if ok:
+            self._handle_class_refresh(show_message=False)
+
+    def _handle_class_delete(self) -> None:
+        class_id = self.class_id_var.get().strip()
+        if messagebox.askyesno("Xác nhận", "Bạn có chắc muốn xóa lớp này?") is False:
+            return
+        ok, msg = self._class_controller.delete(class_id)
+        self._show_result(ok, msg)
+        if ok:
+            self.class_id_var.set("")
+            self.class_name_var.set("")
+            self._handle_class_refresh(show_message=False)
+

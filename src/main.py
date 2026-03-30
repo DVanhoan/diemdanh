@@ -14,10 +14,10 @@ def _ensure_project_root_on_path() -> None:
 
 def main() -> None:
     _ensure_project_root_on_path()
-    from src.controllers.login_controller import LoginController
+    from src.app import App
 
-    controller = LoginController()
-    controller.run()
+    app = App()
+    app.run()
 
 
 if __name__ == "__main__":
