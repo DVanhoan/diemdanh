@@ -86,10 +86,8 @@ class StudentView(tk.Frame):
 
         self._configure_styles()
 
-        # Use controller to access class data/CRUD (View -> Controller -> Service).
         self._class_controller = ClassController()
 
-        # Cached mapping for class combobox.
         self._class_label_to_id: dict[str, str] = {}
 
         self.canvas = tk.Canvas(self, highlightthickness=0, bd=0, bg=self.FALLBACK_BG)
@@ -100,10 +98,8 @@ class StudentView(tk.Frame):
         self._build_content()
         self._start_clock()
 
-        # Keep a local copy of currently displayed students (for select-fill).
         self._students_cache: list[object] = []
 
-        # (services already initialized above)
 
     def _resolve_background_path(self) -> Path | None:
         candidates = [
@@ -129,6 +125,76 @@ class StudentView(tk.Frame):
             font=("times new roman", 10, "bold"),
         )
         style.configure("Student.TCombobox", font=("times new roman", 10))
+
+
+    def _on_canvas_configure(self, event: tk.Event) -> None:  # type: ignore[name-defined]
+        self._last_size = (int(event.width), int(event.height))
+        if self._resize_job is not None:
+            self.after_cancel(self._resize_job)
+        self._resize_job = self.after(30, self._redraw)
+
+    def _redraw(self) -> None:
+        if not self._last_size:
+            return
+        width, height = self._last_size
+        self._draw_background(width, height)
+        self._layout_widgets(width, height)
+
+    def _start_clock(self) -> None:
+        now = datetime.now()
+        self.time_label.config(text=now.strftime("%I:%M:%S %p"))
+        self.date_label.config(text=now.strftime("%d-%m-%Y"))
+        self.after(1000, self._start_clock)
+
+    def _draw_background(self, width: int, height: int) -> None:
+        if self._bg_path is None:
+            self.canvas.configure(bg=self.FALLBACK_BG)
+            if self._bg_image_id is not None:
+                self.canvas.delete(self._bg_image_id)
+                self._bg_image_id = None
+            return
+
+        if Image is not None and ImageTk is not None:
+            if self._bg_original is None:
+                try:
+                    self._bg_original = Image.open(self._bg_path).convert("RGB")
+                except Exception:  # noqa: BLE001
+                    self._bg_original = None
+            if self._bg_original is not None:
+                resized = self._bg_original.resize((width, height), Image.LANCZOS)
+                self._bg_photo = ImageTk.PhotoImage(resized)
+        else:
+            try:
+                self._bg_photo = tk.PhotoImage(file=str(self._bg_path))
+            except tk.TclError:
+                self._bg_photo = None
+
+        if self._bg_photo is None:
+            self.canvas.configure(bg=self.FALLBACK_BG)
+            return
+
+        if self._bg_image_id is None:
+            self._bg_image_id = self.canvas.create_image(0, 0, image=self._bg_photo, anchor="nw")
+        else:
+            self.canvas.itemconfigure(self._bg_image_id, image=self._bg_photo)
+
+        self.canvas.tag_lower(self._bg_image_id)
+
+    def _layout_widgets(self, width: int, height: int) -> None:
+        margin = 12
+        top_reserved = 70
+
+        self.canvas.coords(self._clock_win, margin, margin)
+        self.canvas.coords(self._banner_win, width / 2, margin)
+        self.canvas.coords(self._back_win, width - margin, margin)
+
+        content_x = margin
+        content_y = top_reserved
+        content_w = max(0, width - margin * 2)
+        content_h = max(0, height - top_reserved - margin)
+        self.canvas.coords(self._content_win, content_x, content_y)
+        self.canvas.itemconfigure(self._content_win, width=content_w, height=content_h)
+
 
     def _build_top_widgets(self) -> None:
         clock = tk.Frame(
@@ -208,10 +274,11 @@ class StudentView(tk.Frame):
         sep = tk.Frame(outer, bg="#CFCFCF", width=1)
         right = tk.Frame(outer, bg=self.PANEL_BG)
 
-        outer.columnconfigure(0, weight=0)
-        outer.columnconfigure(1, weight=0)
-        outer.columnconfigure(2, weight=1)
-        outer.rowconfigure(0, weight=1)
+
+        outer.grid_columnconfigure(0, weight=1, uniform="columns")
+        outer.grid_columnconfigure(1, weight=0)
+        outer.grid_columnconfigure(2, weight=2, uniform="columns")
+        outer.grid_rowconfigure(0, weight=1)
 
         left.grid(row=0, column=0, sticky="nsew", padx=(12, 10), pady=12)
         sep.grid(row=0, column=1, sticky="ns", pady=12)
@@ -556,7 +623,7 @@ class StudentView(tk.Frame):
         for key, title in headings.items():
             self.student_tree.heading(key, text=title)
             if key == "name":
-                self.student_tree.column(key, width=160, anchor="w")
+                self.student_tree.column(key, width=160, anchor="center")
             else:
                 self.student_tree.column(key, width=105, anchor="center")
 
@@ -589,7 +656,6 @@ class StudentView(tk.Frame):
         class_group.grid_columnconfigure(0, weight=1)
 
         # Grid 1x2: left (inputs) + right (table).
-        # Use weights so the table naturally gets more space, but keep both responsive.
         class_body.grid_rowconfigure(0, weight=1)
         class_body.grid_columnconfigure(0, weight=2)  # ~40%
         class_body.grid_columnconfigure(1, weight=3)  # ~60%
@@ -723,9 +789,8 @@ class StudentView(tk.Frame):
         self.class_tree.heading("class_id", text="Lớp học", anchor="center")
         self.class_tree.heading("class_name", text="Tên", anchor="center")
 
-        # Keep reasonable minimum widths, but allow stretching with the window.
         self.class_tree.column("class_id", width=100, minwidth=80, anchor="center", stretch=False)
-        self.class_tree.column("class_name", width=200, minwidth=120, anchor="w", stretch=True)
+        self.class_tree.column("class_name", width=200, minwidth=120, anchor="center", stretch=True)
 
         class_scroll = ttk.Scrollbar(right, orient="vertical", command=self.class_tree.yview)
         self.class_tree.configure(yscrollcommand=class_scroll.set)
@@ -737,73 +802,6 @@ class StudentView(tk.Frame):
         # Initial load
         self._handle_class_refresh(show_message=False)
 
-    def _on_canvas_configure(self, event: tk.Event) -> None:  # type: ignore[name-defined]
-        self._last_size = (int(event.width), int(event.height))
-        if self._resize_job is not None:
-            self.after_cancel(self._resize_job)
-        self._resize_job = self.after(30, self._redraw)
-
-    def _redraw(self) -> None:
-        if not self._last_size:
-            return
-        width, height = self._last_size
-        self._draw_background(width, height)
-        self._layout_widgets(width, height)
-
-    def _start_clock(self) -> None:
-        now = datetime.now()
-        self.time_label.config(text=now.strftime("%I:%M:%S %p"))
-        self.date_label.config(text=now.strftime("%d-%m-%Y"))
-        self.after(1000, self._start_clock)
-
-    def _draw_background(self, width: int, height: int) -> None:
-        if self._bg_path is None:
-            self.canvas.configure(bg=self.FALLBACK_BG)
-            if self._bg_image_id is not None:
-                self.canvas.delete(self._bg_image_id)
-                self._bg_image_id = None
-            return
-
-        if Image is not None and ImageTk is not None:
-            if self._bg_original is None:
-                try:
-                    self._bg_original = Image.open(self._bg_path).convert("RGB")
-                except Exception:  # noqa: BLE001
-                    self._bg_original = None
-            if self._bg_original is not None:
-                resized = self._bg_original.resize((width, height), Image.LANCZOS)
-                self._bg_photo = ImageTk.PhotoImage(resized)
-        else:
-            try:
-                self._bg_photo = tk.PhotoImage(file=str(self._bg_path))
-            except tk.TclError:
-                self._bg_photo = None
-
-        if self._bg_photo is None:
-            self.canvas.configure(bg=self.FALLBACK_BG)
-            return
-
-        if self._bg_image_id is None:
-            self._bg_image_id = self.canvas.create_image(0, 0, image=self._bg_photo, anchor="nw")
-        else:
-            self.canvas.itemconfigure(self._bg_image_id, image=self._bg_photo)
-
-        self.canvas.tag_lower(self._bg_image_id)
-
-    def _layout_widgets(self, width: int, height: int) -> None:
-        margin = 12
-        top_reserved = 70
-
-        self.canvas.coords(self._clock_win, margin, margin)
-        self.canvas.coords(self._banner_win, width / 2, margin)
-        self.canvas.coords(self._back_win, width - margin, margin)
-
-        content_x = margin
-        content_y = top_reserved
-        content_w = max(0, width - margin * 2)
-        content_h = max(0, height - top_reserved - margin)
-        self.canvas.coords(self._content_win, content_x, content_y)
-        self.canvas.itemconfigure(self._content_win, width=content_w, height=content_h)
 
     # ----------------- Student actions (handlers) -----------------
     def _handle_save(self) -> None:

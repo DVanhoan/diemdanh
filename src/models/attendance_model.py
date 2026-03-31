@@ -1,18 +1,59 @@
-from pip._internal import models
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, time
+from typing import Any, Mapping
 
 
-class AttendanceModel(models.Model):
-    id = models.AutoField(primary_key=True)
-    student_id = models.IntegerField()
-    student_name = models.CharField(max_length=45)
-    class_name = models.CharField(max_length=45)
-    timeIn = models.TimeField()
-    timeOut = models.TimeField()
-    date = models.CharField(max_length=45)
-    lesson_id = models.IntegerField()
-    status = models.CharField(max_length=45)
+@dataclass(slots=True)
+class AttendanceModel:
+    attendance_id: str
+    student_id: int
+    name: str | None = None
+    class_name: str | None = None
+    time_in: time | str | None = None
+    time_out: time | str | None = None
+    date: date | str | None = None
+    lesson_id: int | None = None
+    attendance_status: str | None = None
 
-    class Meta:
-        db_table = 'attendance'
-        managed = False
+    @staticmethod
+    def from_row(row: Mapping[str, Any]) -> "AttendanceModel":
+        return AttendanceModel(
+            attendance_id=str(row.get("IdAttendance") or ""),
+            student_id=int(row.get("Student_id") or 0),
+            name=row.get("Name"),
+            class_name=row.get("Class"),
+            time_in=row.get("Time_in"),
+            time_out=row.get("Time_out"),
+            date=row.get("Date"),
+            lesson_id=row.get("Lesson_id"),
+            attendance_status=row.get("AttendanceStatus"),
+        )
+
+    def to_insert_params(self) -> tuple[Any, ...]:
+        return (
+            self.attendance_id,
+            self.student_id,
+            self.name,
+            self.class_name,
+            self.time_in,
+            self.time_out,
+            self.date,
+            self.lesson_id,
+            self.attendance_status,
+        )
+
+    def to_update_params(self) -> tuple[Any, ...]:
+        return (
+            self.student_id,
+            self.name,
+            self.class_name,
+            self.time_in,
+            self.time_out,
+            self.date,
+            self.lesson_id,
+            self.attendance_status,
+            self.attendance_id,
+        )
 

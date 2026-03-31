@@ -150,7 +150,6 @@ class TeacherView(tk.Frame):
         ).pack(fill="both", expand=True)
         self._back_win = self.canvas.create_window(0, 0, window=back_box, anchor="ne")
 
-    # ---------- main content ----------
     def _build_content(self) -> None:
         outer = tk.Frame(
             self.canvas,
@@ -160,24 +159,23 @@ class TeacherView(tk.Frame):
         )
         self._content_win = self.canvas.create_window(0, 0, window=outer, anchor="nw")
 
-        outer.grid_columnconfigure(0, weight=1)
+        left = tk.Frame(outer, bg=self.PANEL_BG)
+        sep = tk.Frame(outer, bg="#CFCFCF", width=1)
+        right = tk.Frame(outer, bg=self.PANEL_BG)
+
+        outer.grid_columnconfigure(0, weight=1, uniform="columns")
+        outer.grid_columnconfigure(1, weight=0)
+        outer.grid_columnconfigure(2, weight=2, uniform="columns")
         outer.grid_rowconfigure(0, weight=1)
 
-        body = tk.Frame(outer, bg=self.PANEL_BG)
-        body.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
-        body.grid_columnconfigure(0, weight=3)
-        body.grid_columnconfigure(1, weight=5)
-        body.grid_rowconfigure(0, weight=1)
+        left.grid(row=0, column=0, sticky="nsew", padx=(12, 10), pady=12)
+        sep.grid(row=0, column=1, sticky="ns", pady=12)
+        right.grid(row=0, column=2, sticky="nsew", padx=(10, 12), pady=12)
 
-        left = tk.Frame(body, bg=self.PANEL_BG)
-        right = tk.Frame(body, bg=self.PANEL_BG)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        right.grid(row=0, column=1, sticky="nsew")
+        self._build_left_section(left)
+        self._build_right_section(right)
 
-        self._build_left(left)
-        self._build_right(right)
-
-    def _build_left(self, parent: tk.Frame) -> None:
+    def _build_left_section(self, parent: tk.Frame) -> None:
         font_label = ("Segoe UI", 10)
         font_label_bold = ("Segoe UI", 10, "bold")
         font_title = ("Segoe UI", 12, "bold")
@@ -217,8 +215,9 @@ class TeacherView(tk.Frame):
 
         action_row = tk.Frame(buttons, bg=self.PANEL_BG)
         action_row.grid(row=0, column=0, sticky="ew")
-        for c in range(4):
-            action_row.grid_columnconfigure(c, weight=1, uniform="teacher_action")
+
+        action_row.grid_columnconfigure(0, weight=1, uniform="action")
+        action_row.grid_columnconfigure(1, weight=1, uniform="action")
 
         btn_cfg = dict(
             bg=self.ACTION_BLUE,
@@ -229,15 +228,24 @@ class TeacherView(tk.Frame):
             bd=1,
             relief="solid",
             cursor="hand2",
-            pady=6,
+            pady=8,
         )
 
-        tk.Button(action_row, text="Lưu", command=self._handle_save, **btn_cfg).grid(row=0, column=0, sticky="ew", padx=4, pady=4)
-        tk.Button(action_row, text="Sửa", command=self._handle_update, **btn_cfg).grid(row=0, column=1, sticky="ew", padx=4, pady=4)
-        tk.Button(action_row, text="Xóa", command=self._handle_delete, **btn_cfg).grid(row=0, column=2, sticky="ew", padx=4, pady=4)
-        tk.Button(action_row, text="Làm mới", command=self._handle_refresh, **btn_cfg).grid(row=0, column=3, sticky="ew", padx=4, pady=4)
+        tk.Button(action_row, text="Thêm", command=self._handle_save, **btn_cfg).grid(
+            row=0, column=0, sticky="ew", padx=6, pady=4
+        )
+        tk.Button(action_row, text="Xóa", command=self._handle_delete, **btn_cfg).grid(
+            row=0, column=1, sticky="ew", padx=6, pady=4
+        )
 
-    def _build_right(self, parent: tk.Frame) -> None:
+        tk.Button(action_row, text="Cập nhật", command=self._handle_update, **btn_cfg).grid(
+            row=1, column=0, sticky="ew", padx=6, pady=4
+        )
+        tk.Button(action_row, text="Làm mới", command=self._handle_refresh, **btn_cfg).grid(
+            row=1, column=1, sticky="ew", padx=6, pady=4
+        )
+
+    def _build_right_section(self, parent: tk.Frame) -> None:
         font_label = ("Segoe UI", 10)
         font_label_bold = ("Segoe UI", 10, "bold")
 
@@ -250,6 +258,7 @@ class TeacherView(tk.Frame):
         search.grid_columnconfigure(0, weight=0)
         search.grid_columnconfigure(1, weight=1)
         search.grid_columnconfigure(2, weight=0)
+        search.grid_columnconfigure(3, weight=0)
 
         tk.Label(search, text="Từ khóa:", bg=self.PANEL_BG, font=font_label_bold).grid(row=0, column=0, sticky="w", pady=4)
         tk.Entry(search, textvariable=self.search_var, width=20, font=font_label, bd=1, relief="solid").grid(
@@ -257,7 +266,7 @@ class TeacherView(tk.Frame):
         )
         tk.Button(
             search,
-            text="Tìm",
+            text="Tìm kiếm",
             command=self._handle_search,
             bg=self.ACTION_BLUE,
             activebackground=self.ACTION_BLUE_ACTIVE,
@@ -270,6 +279,22 @@ class TeacherView(tk.Frame):
             pady=4,
             cursor="hand2",
         ).grid(row=0, column=2, sticky="e", pady=4)
+
+        tk.Button(
+            search,
+            text="Xem tất cả",
+            command=self._handle_delete,
+            bg=self.ACTION_BLUE,
+            activebackground=self.ACTION_BLUE_ACTIVE,
+            fg="white",
+            activeforeground="white",
+            font=font_label_bold,
+            bd=1,
+            relief="solid",
+            padx=14,
+            pady=4,
+            cursor="hand2",
+        ).grid(row=0, column=3, sticky="e", pady=4, padx=(8, 0))
 
         # Enter to search for convenience.
         search_entry = None
@@ -293,9 +318,9 @@ class TeacherView(tk.Frame):
         self.teacher_tree.heading("email", text="Email")
 
         self.teacher_tree.column("teacher_id", width=80, anchor="center", stretch=False)
-        self.teacher_tree.column("name", width=180, anchor="w", stretch=True)
+        self.teacher_tree.column("name", width=180, anchor="center", stretch=True)
         self.teacher_tree.column("phone", width=120, anchor="center", stretch=False)
-        self.teacher_tree.column("email", width=200, anchor="w", stretch=True)
+        self.teacher_tree.column("email", width=200, anchor="center", stretch=True)
 
         y_scroll = ttk.Scrollbar(table, orient="vertical", command=self.teacher_tree.yview)
         self.teacher_tree.configure(yscrollcommand=y_scroll.set)
@@ -344,9 +369,12 @@ class TeacherView(tk.Frame):
     def _handle_search(self) -> None:
         keyword = self.search_var.get().strip()
         ok, msg = self.on_search(keyword)
-        # Don't show an error popup for empty keyword; it just means "show all".
         if keyword:
             self._show_result(ok, msg)
+
+    def _handle_all(self) -> None:
+        ok, msg = self.on_search("")
+        self._show_result(ok, msg)
 
     def _on_select_row(self, _: object) -> None:
         sel = self.teacher_tree.selection()

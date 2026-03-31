@@ -12,7 +12,7 @@ class App:
 
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("Face Recognition Attendance System")
+        self.root.title("Hệ thống nhận diện khuôn mặt")
 
         self.project_root = Path(__file__).resolve().parents[1]
         self.assets_dir = self.project_root / "assets"
@@ -68,7 +68,6 @@ class App:
             else:
                 icon_image = tk.PhotoImage(file=str(icon_path))
                 self.root.iconphoto(True, icon_image)
-                # keep reference
                 self.root._icon_ref = icon_image
         except tk.TclError:
             pass

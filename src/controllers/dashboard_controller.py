@@ -37,9 +37,8 @@ class DashboardController:
     def on_face_recognition() -> None:
         messagebox.showinfo("Face Recognition", "Face Recognition module is next.")
 
-    @staticmethod
-    def on_attendance_report() -> None:
-        messagebox.showinfo("Attendance Report", "Attendance Report module is next.")
+    def on_attendance_report(self) -> None:
+       self.router.show("attendance")
 
     @staticmethod
     def on_subjects() -> None:

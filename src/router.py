@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
+
+from src.controllers.attendance_controller import AttendanceController
 from src.controllers.login_controller import LoginController
 from src.controllers.dashboard_controller import DashboardController
 from src.controllers.student_controller import StudentController
@@ -47,6 +49,13 @@ class Router:
             self.app.set_view(view)
             controller.on_show(**payload)
             return
+
+        if name == "attendance":
+            controller = AttendanceController(self.app, self)
+            views = controller.build_view()
+            self.app.set_view(views)
+            return
+
 
         raise ValueError(f"Unknown route: {name}")
 

@@ -150,3 +150,22 @@ class StudentService:
             return True, "Xóa sinh viên thành công!"
         except Exception as e:
             return False, f"Lỗi xóa: {str(e)}"
+
+
+
+    def training_data(self):
+        cursor = self.db.cursor(dictionary=True)
+        query = "SELECT Student_id, Name, Class, PhotoSample FROM student"
+        cursor.execute(query)
+        records = cursor.fetchall()
+        cursor.close()
+
+        training_data = []
+        for row in records:
+            training_data.append({
+                'student_id': row['Student_id'],
+                'name': row['Name'],
+                'class_name': row['Class'],
+                'photo_sample': row['PhotoSample']
+            })
+        return training_data
