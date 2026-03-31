@@ -89,14 +89,14 @@ class TeacherView(tk.Frame):
 
     def _configure_styles(self) -> None:
         style = ttk.Style()
-        style.configure("Teacher.Treeview", font=("Segoe UI", 10), rowheight=24)
-        style.configure("Teacher.Treeview.Heading", font=("Segoe UI", 10, "bold"))
-        style.configure("Teacher.TCombobox", font=("Segoe UI", 10))
+        style.configure("Teacher.Treeview", font=("times new roman", 10), rowheight=24)
+        style.configure("Teacher.Treeview.Heading", font=("times new roman", 10, "bold"))
+        style.configure("Teacher.TCombobox", font=("times new roman", 10))
 
     # ---------- top banner ----------
     def _build_top_widgets(self) -> None:
-        font_banner = ("Segoe UI", 14, "bold")
-        font_clock = ("Segoe UI", 10, "bold")
+        font_banner = ("times new roman", 14, "bold")
+        font_clock = ("times new roman", 11, "bold")
 
         clock = tk.Frame(
             self.canvas,
@@ -105,7 +105,7 @@ class TeacherView(tk.Frame):
             highlightbackground=self.BORDER_COLOR,
         )
         clock.pack_propagate(False)
-        clock.configure(width=140, height=44)
+        clock.configure(width=120, height=44)
 
         self.time_label = tk.Label(clock, text="00:00:00 AM", bg=self.BANNER_BG, fg="#1F1F1F", font=font_clock)
         self.time_label.pack(fill="x")
@@ -125,7 +125,7 @@ class TeacherView(tk.Frame):
             banner,
             text="Quản lý thông tin Giảng viên",
             bg=self.BANNER_BG,
-            fg=self.TITLE_RED,
+            fg="#1F1F1F",
             font=font_banner,
         ).pack(expand=True)
         self._banner_win = self.canvas.create_window(0, 0, window=banner, anchor="n")
@@ -144,7 +144,7 @@ class TeacherView(tk.Frame):
             command=self.on_back,
             bg=self.BANNER_BG,
             fg="#1F1F1F",
-            font=("Segoe UI", 10, "bold"),
+            font=("times new roman", 11, "bold"),
             bd=0,
             cursor="hand2",
         ).pack(fill="both", expand=True)
@@ -176,9 +176,9 @@ class TeacherView(tk.Frame):
         self._build_right_section(right)
 
     def _build_left_section(self, parent: tk.Frame) -> None:
-        font_label = ("Segoe UI", 10)
-        font_label_bold = ("Segoe UI", 10, "bold")
-        font_title = ("Segoe UI", 12, "bold")
+        font_label = ("times new roman", 10)
+        font_label_bold = ("times new roman", 10, "bold")
+        font_title = ("times new roman", 12, "bold")
 
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(0, weight=0)
@@ -246,8 +246,8 @@ class TeacherView(tk.Frame):
         )
 
     def _build_right_section(self, parent: tk.Frame) -> None:
-        font_label = ("Segoe UI", 10)
-        font_label_bold = ("Segoe UI", 10, "bold")
+        font_label = ("times new roman", 10)
+        font_label_bold = ("times new roman", 10, "bold")
 
         parent.grid_columnconfigure(0, weight=1)
         parent.grid_rowconfigure(0, weight=0)
@@ -283,7 +283,7 @@ class TeacherView(tk.Frame):
         tk.Button(
             search,
             text="Xem tất cả",
-            command=self._handle_delete,
+            command=self._handle_all,
             bg=self.ACTION_BLUE,
             activebackground=self.ACTION_BLUE_ACTIVE,
             fg="white",

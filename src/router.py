@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from src.controllers.attendance_management_controller import AttendanceManagementController
 from src.controllers.attendance_controller import AttendanceController
 from src.controllers.login_controller import LoginController
 from src.controllers.dashboard_controller import DashboardController
@@ -50,10 +51,18 @@ class Router:
             controller.on_show(**payload)
             return
 
-        if name == "attendance":
-            controller = AttendanceController(self.app, self)
+        if name == "attendance_management":
+            controller = AttendanceManagementController(self.app, self)
             views = controller.build_view()
             self.app.set_view(views)
+            controller.on_show(**payload)
+            return
+
+        if name == "attendance":
+            controller = AttendanceController(self.app, self)
+            view = controller.build_view()
+            self.app.set_view(view)
+            controller.on_show(**payload)
             return
 
 

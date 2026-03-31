@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-
+from src.app import App
 
 def _ensure_project_root_on_path() -> None:
     project_root = Path(__file__).resolve().parents[1]
@@ -14,7 +14,6 @@ def _ensure_project_root_on_path() -> None:
 
 def main() -> None:
     _ensure_project_root_on_path()
-    from src.app import App
 
     app = App()
     app.run()

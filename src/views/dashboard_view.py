@@ -124,7 +124,7 @@ class DashboardView(tk.Frame):
             highlightbackground=self.BORDER_COLOR,
         )
         banner.pack_propagate(False)
-        banner.configure(width=420, height=34)
+        banner.configure(width=520, height=34)
         tk.Label(
             banner,
             text="Hệ thống nhận diện khuôn mặt",
@@ -215,7 +215,7 @@ class DashboardView(tk.Frame):
                     text=fallback,
                     bg=self.TILE_BG,
                     fg="#1F1F1F",
-                    font=("arial", 26, "bold"),
+                    font=("times new roman", 26, "bold"),
                 )
                 icon_label.pack(pady=(18, 8))
 

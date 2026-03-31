@@ -236,7 +236,7 @@ class StudentView(tk.Frame):
             banner,
             text="Quản lý thông tin Học sinh",
             bg=self.BANNER_BG,
-            fg=self.TITLE_RED,
+            fg="#1F1F1F",
             font=("times new roman", 14, "bold"),
         ).pack(expand=True)
         self._banner_win = self.canvas.create_window(0, 0, window=banner, anchor="n")
@@ -294,10 +294,10 @@ class StudentView(tk.Frame):
         parent.grid_rowconfigure(2, weight=1)  # info (expand)
         parent.grid_rowconfigure(3, weight=0)  # buttons (bottom)
 
-        # Prefer Segoe UI for a more modern look (safe fallback kept by Tk).
-        font_label = ("Segoe UI", 10)
-        font_label_bold = ("Segoe UI", 10, "bold")
-        font_title = ("Segoe UI", 12, "bold")
+        # Prefer times new roman for consistent font.
+        font_label = ("times new roman", 10)
+        font_label_bold = ("times new roman", 10, "bold")
+        font_title = ("times new roman", 12, "bold")
 
         tk.Label(
             parent,
@@ -524,8 +524,8 @@ class StudentView(tk.Frame):
         )
 
     def _build_right_section(self, parent: tk.Frame) -> None:
-        font_label = ("Segoe UI", 10)
-        font_label_bold = ("Segoe UI", 10, "bold")
+        font_label = ("times new roman", 10)
+        font_label_bold = ("times new roman", 10, "bold")
 
         # --- Student search block ---
         search_group = tk.LabelFrame(
@@ -758,7 +758,7 @@ class StudentView(tk.Frame):
             bg=self.ACTION_YELLOW,
             activebackground=self.ACTION_YELLOW_ACTIVE,
             fg="#1F1F1F",
-            font=("Segoe UI", 10, "bold"),
+            font=("times new roman", 10, "bold"),
             bd=1,
             relief="solid",
             pady=6,
