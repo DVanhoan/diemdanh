@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Any
 
 try:
     from PIL import Image, ImageTk
@@ -21,6 +21,7 @@ class AttendanceView(tk.Frame):
     ACTION_BLUE = "#3498DB"
     BTN_OPEN_BG = "#8A9BAE"
     BTN_CLOSE_BG = "#0A1128"
+    AVATAR_SIZE = 160
 
     def __init__(
         self,
@@ -52,6 +53,8 @@ class AttendanceView(tk.Frame):
         self.type_var = tk.StringVar(value="Vào")
         self.lesson_combo: ttk.Combobox | None = None
 
+        self.avatar_box: tk.Label | None = None
+        self.avatar_photo_var: Any | None = None
         self.student_id_var = tk.StringVar()
         self.student_name_var = tk.StringVar()
         self.time_var = tk.StringVar()
@@ -148,10 +151,9 @@ class AttendanceView(tk.Frame):
                          highlightbackground=self.BORDER_COLOR, highlightthickness=1)
         self._content_win = self.canvas.create_window(0, 0, window=outer, anchor="nw")
 
-        # QUAN TRỌNG: Cấp weight cho row=0 để nội dung bên trong có thể giãn xuống dưới đáy
         outer.grid_rowconfigure(0, weight=1)
-        outer.grid_columnconfigure(0, weight=6) # Cột trái chiếm 60%
-        outer.grid_columnconfigure(1, weight=4) # Cột phải chiếm 40%
+        outer.grid_columnconfigure(0, weight=6)
+        outer.grid_columnconfigure(1, weight=4)
 
         # LEFT
         left = tk.Frame(outer, bg=self.PANEL_BG)
@@ -187,9 +189,13 @@ class AttendanceView(tk.Frame):
         tk.Label(top, text="Chọn loại Điểm Danh:", bg=self.PANEL_BG, font=("times new roman", 9, "bold")).pack(side="left")
         ttk.Combobox(top, textvariable=self.type_var, values=["Vào", "Ra"], style="Attend.TCombobox", width=8).pack(side="left", padx=5)
 
-        # Row 2: Camera view (Dùng expand=True để nó tự lấp đầy khoảng trống)
-        self.camera_display = tk.Label(left_group, text="[Camera streaming]", bg="#EAEAEA", relief="solid", bd=1)
-        self.camera_display.pack(fill="both", expand=True, padx=10, pady=5)
+        # Camera Container
+        self.camera_container = tk.Frame(left_group, bg="#EAEAEA", highlightthickness=1, relief="solid", bd=1)
+        self.camera_container.pack(fill="both", expand=True, padx=10, pady=5)
+        self.camera_container.pack_propagate(False)
+
+        self.camera_display = tk.Label(self.camera_container, text="[Camera streaming]", bg="#EAEAEA")
+        self.camera_display.pack(fill="both", expand=True)
 
         # Line + Status Label
         ttk.Separator(left_group, orient="horizontal").pack(fill="x", padx=10, pady=(5, 0))
@@ -214,13 +220,23 @@ class AttendanceView(tk.Frame):
 
 
     def _build_right(self, parent):
-        # 1. Điểm danh thành công
         top_group = tk.LabelFrame(parent, text="Điểm danh thành công", bg=self.PANEL_BG, font=("times new roman", 11, "bold"))
         top_group.pack(fill="both", expand=True, pady=(0, 10))
 
-        # Khung chứa ảnh Avatar nền đen viền xám giống ảnh thiết kế
-        avatar_box = tk.Label(top_group, text="?", bg="#000000", fg="white", font=("times new roman", 60), width=6, height=3, relief="solid", bd=1)
-        avatar_box.pack(pady=15)
+        avatar_wrap = tk.Frame(top_group, bg=self.PANEL_BG, width=self.AVATAR_SIZE, height=self.AVATAR_SIZE)
+        avatar_wrap.pack(pady=15)
+        avatar_wrap.pack_propagate(False)
+
+        self.avatar_box = tk.Label(
+            avatar_wrap,
+            text="?",
+            bg="#000000",
+            fg="white",
+            font=("times new roman", 44, "bold"),
+            relief="solid",
+            bd=1,
+        )
+        self.avatar_box.pack(fill="both", expand=True)
 
         def row(container, txt, var):
             frame = tk.Frame(container, bg=self.PANEL_BG)
@@ -232,7 +248,6 @@ class AttendanceView(tk.Frame):
         row(top_group, "Tên Học sinh:", self.student_name_var)
         row(top_group, "Thời gian:", self.time_var)
 
-        # 2. Thông tin buổi học
         bottom_group = tk.LabelFrame(parent, text="Thông tin buổi học", bg=self.PANEL_BG, font=("times new roman", 11, "bold"))
         bottom_group.pack(fill="x", pady=(0, 10))
 
@@ -240,7 +255,6 @@ class AttendanceView(tk.Frame):
         row(bottom_group, "Tên môn học/ID buổi học:", self.lesson_info_var)
         row(bottom_group, "Thời gian:", self.session_time_var)
 
-        # Nút xác nhận (Thiết kế cũ có nên giữ lại, chỉnh lại màu đồng nhất)
         tk.Button(
             parent,
             text="Xác nhận Điểm danh",
@@ -331,3 +345,23 @@ class AttendanceView(tk.Frame):
 
     def _on_lesson_selected(self, _: object = None) -> None:
         self.on_lesson_change(self.class_var.get())
+
+    def set_avatar_image(self, image_path: Path | None) -> None:
+        if self.avatar_box is None:
+            return
+        if image_path is None or not image_path.exists() or Image is None or ImageTk is None:
+            self.clear_avatar()
+            return
+
+        try:
+            avatar = Image.open(image_path).convert("RGB").resize((self.AVATAR_SIZE, self.AVATAR_SIZE))
+            self.avatar_photo_var = ImageTk.PhotoImage(avatar)
+            self.avatar_box.configure(text="", image=self.avatar_photo_var)
+        except Exception:
+            self.clear_avatar()
+
+    def clear_avatar(self) -> None:
+        if self.avatar_box is None:
+            return
+        self.avatar_photo_var = None
+        self.avatar_box.configure(image="", text="?")

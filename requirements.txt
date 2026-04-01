@@ -1,7 +1,6 @@
-opencv-contrib-python
-pillow
-mysql-connector-python
+opencv-contrib-python==4.10.0.84
 numpy
+mysql-connector-python
+pillow
 pandas
 tkcalendar
-opencv-contrib-python

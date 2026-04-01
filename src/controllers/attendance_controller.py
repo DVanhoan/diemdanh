@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-import tkinter as tk
 from tkinter import messagebox
 
 import cv2
 from PIL import Image, ImageTk
 
 from src.services.attendance_service import AttendanceService
-from src.views.attendance_view import AttendanceView as AttendanceActionView
+from src.views.attendance_view import AttendanceView
 
 
 def _resolve_cv2_module():
@@ -34,7 +33,7 @@ class AttendanceController:
 		self.router = router
 		self._cv2 = _resolve_cv2_module()
 		self.service = AttendanceService(self.app.assets_dir, self.app.project_root)
-		self.view: AttendanceActionView | None = None
+		self.view: AttendanceView | None = None
 
 		self._camera_job: str | None = None
 		self._camera_photo: ImageTk.PhotoImage | None = None
@@ -42,9 +41,10 @@ class AttendanceController:
 		self._recognized_student_id: int | None = None
 		self._recognized_student_name: str = ""
 		self._recognized_class_name: str = ""
+		self._recognized_avatar_student_id: int | None = None
 
-	def build_view(self) -> AttendanceActionView:
-		self.view = AttendanceActionView(
+	def build_view(self) -> AttendanceView:
+		self.view = AttendanceView(
 			self.app.root,
 			on_start_camera=self.on_start_camera,
 			on_stop_camera=self.on_stop_camera,
@@ -69,7 +69,6 @@ class AttendanceController:
 
 			self.on_lesson_change(self.view.class_var.get())
 			
-			# Tự động mở camera khi vào trang
 			self.on_start_camera()
 		except Exception as e:
 			messagebox.showerror("Lỗi khi tải dữ liệu", f"Không thể tải danh sách buổi học: {str(e)}")
@@ -145,68 +144,115 @@ class AttendanceController:
 
 			if self.view is not None:
 				self.view.camera_display.configure(image="", text="[Camera streaming]")
+				setattr(self.view.camera_display, "image", None)
 
 			self._camera_photo = None
+			self._recognized_student_id = None
+			self._recognized_student_name = ""
+			self._recognized_class_name = ""
+			self._recognized_avatar_student_id = None
+			if self.view is not None:
+				self.view.clear_avatar()
 			return True, "Đã đóng camera."
 		except Exception as e:
 			messagebox.showerror("Lỗi đóng camera", f"Có lỗi xảy ra: {str(e)}")
 			return False, str(e)
 
+	def _update_recognized_avatar(self, student_id: int) -> None:
+		if self.view is None:
+			return
+		if self._recognized_avatar_student_id == student_id:
+			return
+
+		avatar_path = self.service.get_student_avatar_path(student_id)
+		self.view.set_avatar_image(avatar_path)
+		self._recognized_avatar_student_id = student_id
+
 	def _camera_loop(self) -> None:
 		if self.view is None:
 			return
 
-		frame, result = self.service.read_frame()
-		if frame is not None:
+		try:
+			# 1. Lấy khung hình và kết quả nhận diện từ Service
+			frame, result = self.service.read_frame()
+
+			if frame is None:
+				# Nếu không đọc được camera, hiển thị thông báo và tiếp tục lặp
+				self.view.camera_display.configure(text="[Không đọc được khung hình]", image="")
+				self.view.camera_display.image = None
+				self._camera_job = self.view.after(self.FRAME_INTERVAL_MS, self._camera_loop)
+				return
+
+			# 2. Vẽ khung nhận diện nếu có kết quả (Logic Giai đoạn 4)
 			if result is not None:
 				x, y, w, h = result.bbox
-				if hasattr(self._cv2, "rectangle") and hasattr(self._cv2, "putText"):
+				if hasattr(self._cv2, "rectangle"):
+					# Vẽ hình chữ nhật bao quanh mặt (Màu xanh lá nhẹ)
 					self._cv2.rectangle(frame, (x, y), (x + w, y + h), (67, 205, 128), 2)
+
+					# Hiển thị ID và Tên phía trên khung
+					text_display = f"ID:{result.student_id} {result.student_name}"
 					self._cv2.putText(
 						frame,
-						f"ID:{result.student_id} {result.student_name}",
+						text_display,
 						(x, max(20, y - 10)),
 						getattr(self._cv2, "FONT_HERSHEY_SIMPLEX", 0),
-						0.65,
+						0.6,
 						(67, 205, 128),
 						2,
 					)
 
+				# Cập nhật thông tin sinh viên sang bảng bên phải (View)
 				self._recognized_student_id = result.student_id
 				self._recognized_student_name = result.student_name
 				self._recognized_class_name = result.class_name
+				self._update_recognized_avatar(result.student_id)
+
 
 				self.view.student_id_var.set(str(result.student_id))
 				self.view.student_name_var.set(result.student_name)
 				self.view.time_var.set(datetime.now().strftime("%H:%M:%S"))
 
-				lesson_info, err = self.service.get_lesson_info(self.view.class_var.get())
-				if lesson_info is not None:
-					self.view.subject_var.set(str(lesson_info.get("class_name") or ""))
-					time_start = lesson_info.get("time_start")
-					time_end = lesson_info.get("time_end")
-					subject_name = str(lesson_info.get("subject_name") or "")
-					self.view.session_time_var.set(f"{subject_name}: {time_start} - {time_end}")
-				elif err:
-					self.view.subject_var.set("")
-					self.view.session_time_var.set(err)
-
+			# 3. Xử lý hiển thị ảnh lên giao diện
 			if hasattr(self._cv2, "cvtColor") and hasattr(self._cv2, "COLOR_BGR2RGB"):
+				# Chuyển từ BGR (OpenCV) sang RGB (PIL)
 				rgb = self._cv2.cvtColor(frame, self._cv2.COLOR_BGR2RGB)
-				
-				# Resize frame to fit label (keep aspect ratio)
-				h, w = rgb.shape[:2]
-				max_width = 400
-				if w > max_width and hasattr(self._cv2, "resize"):
-					ratio = max_width / w
-					new_h = int(h * ratio)
-					rgb = self._cv2.resize(rgb, (max_width, new_h))
-				
-				pil_image = Image.fromarray(rgb)
-				self._camera_photo = ImageTk.PhotoImage(image=pil_image)
-				self.view.camera_display.configure(image=self._camera_photo, text="")
 
-		self._camera_job = self.view.after(self.FRAME_INTERVAL_MS, self._camera_loop)
+				target_w = self.view.camera_container.winfo_width()
+				target_h = self.view.camera_container.winfo_height()
+
+				# Nếu widget chưa render xong, dùng kích thước mặc định
+				if target_w < 10 or target_h < 10:
+					target_w, target_h = 640, 480
+
+				# Tính toán tỷ lệ để giữ nguyên Aspect Ratio (Tỷ lệ khung hình)
+				h0, w0 = rgb.shape[:2]
+				scale = min(target_w / w0, target_h / h0)
+				new_w = max(1, int(w0 * scale))
+				new_h = max(1, int(h0 * scale))
+
+				# Resize ảnh về kích thước phù hợp với khung giao diện
+				if hasattr(self._cv2, "resize"):
+					rgb = self._cv2.resize(rgb, (new_w, new_h))
+
+				# Chuyển đổi sang định dạng ảnh Tkinter
+				pil_image = Image.fromarray(rgb)
+				photo = ImageTk.PhotoImage(image=pil_image)
+
+				# Cập nhật ảnh lên giao diện
+				self._camera_photo = photo
+				self.view.camera_display.configure(image=photo, text="")
+
+				# Phải giữ một tham chiếu đến PhotoImage trong object của Tkinter
+				self.view.camera_display.image = photo
+
+		except Exception as exc:
+			if self.view:
+				self.view.camera_display.configure(text=f"[Lỗi camera: {exc}]", image="")
+
+		finally:
+			if self.view:
+				self._camera_job = self.view.after(self.FRAME_INTERVAL_MS, self._camera_loop)
 
 	def on_submit_check(self, lesson_raw: str, attendance_type: str) -> tuple[bool, str]:
 		try:

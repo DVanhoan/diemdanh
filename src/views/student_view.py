@@ -43,6 +43,7 @@ class StudentView(tk.Frame):
         on_refresh: Callable[..., object],
         on_search: Callable[..., object],
         on_capture: Callable[..., object],
+        on_training: Callable[..., object],
         on_back: Callable[[], None],
         assets_dir: Path,
     ) -> None:
@@ -54,6 +55,7 @@ class StudentView(tk.Frame):
         self.on_refresh = on_refresh
         self.on_search = on_search
         self.on_capture = on_capture
+        self.on_training = on_training
         self.on_back = on_back
 
         self._bg_path = self._resolve_background_path()
@@ -99,6 +101,7 @@ class StudentView(tk.Frame):
         self._start_clock()
 
         self._students_cache: list[object] = []
+        self._student_by_id: dict[str, object] = {}
 
 
     def _resolve_background_path(self) -> Path | None:
@@ -519,7 +522,7 @@ class StudentView(tk.Frame):
         tk.Button(bottom_row, text="Lấy ảnh Học sinh", command=self.on_capture, **btn_cfg_bottom).grid(
             row=0, column=0, sticky="ew", padx=4, pady=4
         )
-        tk.Button(bottom_row, text="Training Data", command=lambda: None, **btn_cfg_bottom).grid(
+        tk.Button(bottom_row, text="Training Data", command=self.on_training, **btn_cfg_bottom).grid(
             row=0, column=1, sticky="ew", padx=4, pady=4
         )
 
@@ -817,6 +820,7 @@ class StudentView(tk.Frame):
             self.dob_var.get().strip(),
             self.address_var.get().strip(),
             self.photo_var.get().strip(),
+            roll=self.id_card_var.get().strip(),
         )
         self._show_result(ok, msg)
         if ok:
@@ -835,6 +839,7 @@ class StudentView(tk.Frame):
             self.dob_var.get().strip(),
             self.address_var.get().strip(),
             self.photo_var.get().strip(),
+            roll=self.id_card_var.get().strip(),
         )
         self._show_result(ok, msg)
 
@@ -865,24 +870,44 @@ class StudentView(tk.Frame):
         if not sel:
             return
         values = self.student_tree.item(sel[0], "values")
-        if len(values) >= 6:
-            self.student_id_var.set(values[0])
-            self.year_var.set(values[1])
-            self.semester_var.set(values[2])
-            self.name_var.set(values[3])
-            class_id = values[4]
-            self.class_var.set(class_id)
-            # Update displayed label in combobox if we have mapping.
-            try:
-                id_to_label = {v: k for k, v in getattr(self, "_class_label_to_id", {}).items()}
-                label = id_to_label.get(class_id)
-                if label:
-                    self.class_cb.set(label)
-                else:
-                    self.class_cb.set(class_id)
-            except Exception:
-                self.class_cb.set(class_id)
-            self.id_card_var.set(values[5])
+        if not values:
+            return
+
+        student_id = str(values[0]).strip()
+        if not student_id:
+            return
+
+        student = self._student_by_id.get(student_id)
+        if student is None:
+            student = next(
+                (s for s in self._students_cache if str(getattr(s, "student_id", "")).strip() == student_id),
+                None,
+            )
+        if student is None:
+            return
+
+        self.student_id_var.set(student_id)
+        self.year_var.set(str(getattr(student, "year", "") or ""))
+        self.semester_var.set(str(getattr(student, "semester", "") or ""))
+        self.name_var.set(str(getattr(student, "name", "") or ""))
+
+        class_value = str(getattr(student, "class_name", "") or "").strip()
+        self.class_var.set(class_value)
+        try:
+            id_to_label = {v: k for k, v in getattr(self, "_class_label_to_id", {}).items()}
+            self.class_cb.set(id_to_label.get(class_value, class_value))
+        except Exception:
+            self.class_cb.set(class_value)
+
+        self.id_card_var.set(str(getattr(student, "roll", "") or ""))
+        self.gender_var.set(str(getattr(student, "gender", "Nam") or "Nam"))
+        self.dob_var.set(str(getattr(student, "dob", "") or ""))
+        self.email_var.set(str(getattr(student, "email", "") or ""))
+        self.phone_var.set(str(getattr(student, "phone", "") or ""))
+        self.address_var.set(str(getattr(student, "address", "") or ""))
+
+        photo_sample = str(getattr(student, "photo_sample", "") or "").strip()
+        self.photo_var.set("Có ảnh" if photo_sample == "Có ảnh" else "Không ảnh")
 
     def _clear_form(self) -> None:
         self.student_id_var.set("")
@@ -906,6 +931,11 @@ class StudentView(tk.Frame):
     # ----------------- Table rendering -----------------
     def set_table_rows(self, students: list[object]) -> None:
         self._students_cache = students
+        self._student_by_id = {
+            str(getattr(st, "student_id", "")).strip(): st
+            for st in students
+            if str(getattr(st, "student_id", "")).strip()
+        }
         self.student_tree.delete(*self.student_tree.get_children())
         for st in students:
             # StudentModel attributes in this project: student_id, year, semester, name, class_name, ...

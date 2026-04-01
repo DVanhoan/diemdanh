@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import re
 
 import sys
 import cv2
@@ -64,14 +65,24 @@ class AttendanceService:
 	def _load_recognizer(self):
 		if not hasattr(self._cv2, "face"):
 			return None
+		if not hasattr(self._cv2.face, "LBPHFaceRecognizer_create"):
+			return None
 
 		try:
 			recognizer = self._cv2.face.LBPHFaceRecognizer_create()
 		except Exception:  # noqa: BLE001
 			return None
 
-		model_path = self.project_root / "models" / "trainer.yml"
-		if not model_path.exists():
+		model_path = None
+		for candidate in (
+			self.project_root / "models" / "classifier.xml",
+			self.project_root / "models" / "trainer.yml",
+		):
+			if candidate.exists():
+				model_path = candidate
+				break
+
+		if model_path is None:
 			return None
 
 		try:
@@ -88,16 +99,28 @@ class AttendanceService:
 		if self._capture is not None and self._capture.isOpened():
 			return True, "Camera đang chạy."
 
-		if sys.platform.startswith("win"):
-			cap = self._cv2.VideoCapture(0, self._cv2.CAP_DSHOW)
-		else:
-			cap = self._cv2.VideoCapture(0)
+		def _open(index: int):
+			if sys.platform.startswith("win") and hasattr(self._cv2, "CAP_DSHOW"):
+				return self._cv2.VideoCapture(index, self._cv2.CAP_DSHOW)
+			return self._cv2.VideoCapture(index)
 
+		cap = _open(0)
 		if not cap.isOpened():
-			cap = self._cv2.VideoCapture(1)
+			cap = _open(1)
+		if not cap.isOpened():
+			cap = _open(2)
+		if not cap.isOpened():
+			return False, "Không mở được camera (đã thử 0/1/2)."
 
-		if not cap.isOpened():
-			return False, "Không mở được camera."
+		# Some webcams/drivers need explicit settings to start streaming.
+		try:
+			if hasattr(self._cv2, "CAP_PROP_FRAME_WIDTH"):
+				cap.set(self._cv2.CAP_PROP_FRAME_WIDTH, 640)
+				cap.set(self._cv2.CAP_PROP_FRAME_HEIGHT, 480)
+			if hasattr(self._cv2, "CAP_PROP_FPS"):
+				cap.set(self._cv2.CAP_PROP_FPS, 30)
+		except Exception:  # noqa: BLE001
+			pass
 
 		self._capture = cap
 		return True, "Đã mở camera."
@@ -170,6 +193,23 @@ class AttendanceService:
 			"name": str(row.get("Name") or ""),
 			"class_name": str(row.get("Class") or ""),
 		}
+
+	def get_student_avatar_path(self, student_id: int) -> Path | None:
+		dataset_dir = self.project_root / "dataset"
+		if not dataset_dir.exists():
+			return None
+
+		candidates = list(dataset_dir.glob(f"User.{student_id}.*.jpg"))
+		if not candidates:
+			return None
+
+		def _sort_key(path: Path) -> tuple[int, str]:
+			match = re.match(rf"^User\.{student_id}\.(\d+)\.jpg$", path.name)
+			if match:
+				return int(match.group(1)), path.name
+			return 10**9, path.name
+
+		return sorted(candidates, key=_sort_key)[0]
 
 	def get_lesson_options(self) -> list[str]:
 		cursor = self.db.cursor(dictionary=True)

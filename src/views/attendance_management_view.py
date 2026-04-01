@@ -627,3 +627,6 @@ class AttendanceManagementView(tk.Frame):
         ok, msg = self.on_all()
         _show_result(ok, msg)
 
+    def on_show_image(self, attendance_id: str) -> tuple[bool, str]:
+        return False, "Chức năng xem ảnh chưa được triển khai."
+
