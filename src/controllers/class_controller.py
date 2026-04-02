@@ -16,10 +16,10 @@ class ClassController:
         self.service = ClassService()
 
     def list_all(self) -> list[ClassModel]:
-        return self.service.get_all_class_models()
+        return self.service.get_all_classes()
 
     def search(self, keyword: str) -> list[ClassModel]:
-        return self.service.search_class_models(keyword)
+        return self.service.search_classes(keyword)
 
     def create(self, class_id: str, name: str):
         class_id = (class_id or "").strip()

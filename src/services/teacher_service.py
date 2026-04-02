@@ -10,6 +10,18 @@ class TeacherService:
     def __init__(self) -> None:
         self.db = DatabaseConnection().get_connection()
 
+    @staticmethod
+    def _row_to_model(row: dict) -> TeacherModel:
+        return TeacherModel(
+            teacher_id=row["Teacher_id"],
+            name=row["Name"],
+            phone=row["Phone"],
+            email=row["Email"],
+            security_q=row["SecurityQ"],
+            security_a=row["SecurityA"],
+            password=row["Password"],
+        )
+
     def get_all_teachers(self) -> list[TeacherModel]:
         cursor = self.db.cursor(dictionary=True)
         cursor.execute(
@@ -17,21 +29,7 @@ class TeacherService:
         )
         records = cursor.fetchall()
         cursor.close()
-
-        teachers: list[TeacherModel] = []
-        for row in records:
-            teachers.append(
-                TeacherModel(
-                    teacher_id=row["Teacher_id"],
-                    name=row["Name"],
-                    phone=row["Phone"],
-                    email=row["Email"],
-                    security_q=row["SecurityQ"],
-                    security_a=row["SecurityA"],
-                    password=row["Password"],
-                )
-            )
-        return teachers
+        return [self._row_to_model(row) for row in records]
 
     def search_teachers(self, keyword: str) -> list[TeacherModel]:
         kw = (keyword or "").strip()
@@ -58,21 +56,7 @@ class TeacherService:
             records = cursor.fetchall()
 
         cursor.close()
-
-        teachers: list[TeacherModel] = []
-        for row in records:
-            teachers.append(
-                TeacherModel(
-                    teacher_id=row["Teacher_id"],
-                    name=row["Name"],
-                    phone=row["Phone"],
-                    email=row["Email"],
-                    security_q=row["SecurityQ"],
-                    security_a=row["SecurityA"],
-                    password=row["Password"],
-                )
-            )
-        return teachers
+        return [self._row_to_model(row) for row in records]
 
     def create_teacher(self, teacher: TeacherModel):
         try:

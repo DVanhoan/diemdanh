@@ -6,20 +6,8 @@ class StudentService:
     def __init__(self):
         self.db = DatabaseConnection().get_connection()
 
-    def student_exists(self, student_id: int) -> bool:
-        cursor = self.db.cursor()
-        cursor.execute("SELECT 1 FROM student WHERE Student_id = %s LIMIT 1", (student_id,))
-        row = cursor.fetchone()
-        cursor.close()
-        return row is not None
-
-    def get_student_by_id(self, student_id: int) -> StudentModel | None:
-        cursor = self.db.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM student WHERE Student_id = %s LIMIT 1", (student_id,))
-        row = cursor.fetchone()
-        cursor.close()
-        if not row:
-            return None
+    @staticmethod
+    def _row_to_model(row: dict) -> StudentModel:
         return StudentModel(
             student_id=row['Student_id'],
             dep=row.get('Dep'),
@@ -36,6 +24,25 @@ class StudentService:
             address=row.get('Address'),
             photo_sample=row.get('PhotoSample'),
         )
+
+    def _rows_to_models(self, rows: list[dict]) -> list[StudentModel]:
+        return [self._row_to_model(row) for row in rows]
+
+    def student_exists(self, student_id: int) -> bool:
+        cursor = self.db.cursor()
+        cursor.execute("SELECT 1 FROM student WHERE Student_id = %s LIMIT 1", (student_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        return row is not None
+
+    def get_student_by_id(self, student_id: int) -> StudentModel | None:
+        cursor = self.db.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM student WHERE Student_id = %s LIMIT 1", (student_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        if not row:
+            return None
+        return self._row_to_model(row)
 
     def mark_photo_sample(self, student_id: int, has_sample: bool) -> tuple[bool, str]:
         status = "Có ảnh" if has_sample else "Không ảnh"
@@ -62,27 +69,7 @@ class StudentService:
         cursor.execute(query)
         records = cursor.fetchall()
         cursor.close()
-
-        students = []
-        for row in records:
-            student = StudentModel(
-                student_id=row['Student_id'],
-                dep=row.get('Dep'),
-                course=row.get('course'),
-                year=row.get('Year'),
-                semester=row.get('Semester'),
-                name=row.get('Name'),
-                class_name=row.get('Class'),
-                roll=row.get('Roll'),
-                gender=row.get('Gender'),
-                dob=row.get('Dob'),
-                email=row.get('Email'),
-                phone=row.get('Phone'),
-                address=row.get('Address'),
-                photo_sample=row.get('PhotoSample'),
-            )
-            students.append(student)
-        return students
+        return self._rows_to_models(records)
 
     def search_students(self, search_type: str, keyword: str):
         kw = (keyword or "").strip()
@@ -105,28 +92,7 @@ class StudentService:
 
         records = cursor.fetchall()
         cursor.close()
-
-        students = []
-        for row in records:
-            students.append(
-                StudentModel(
-                    student_id=row['Student_id'],
-                    dep=row.get('Dep'),
-                    course=row.get('course'),
-                    year=row.get('Year'),
-                    semester=row.get('Semester'),
-                    name=row.get('Name'),
-                    class_name=row.get('Class'),
-                    roll=row.get('Roll'),
-                    gender=row.get('Gender'),
-                    dob=row.get('Dob'),
-                    email=row.get('Email'),
-                    phone=row.get('Phone'),
-                    address=row.get('Address'),
-                    photo_sample=row.get('PhotoSample'),
-                )
-            )
-        return students
+        return self._rows_to_models(records)
 
     def create_student(self, student: StudentModel):
         try:
