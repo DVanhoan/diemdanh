@@ -14,6 +14,13 @@ class LoginView(tk.Frame):
     CARD_BG = "#FFFFFF"
     TITLE_COLOR = "#1CA3C8"
     BUTTON_BLUE = "#3399FF"
+    CARD_WIDTH = 640
+    CARD_HEIGHT = 390
+    TITLE_FONT = ("times new roman", 24, "bold")
+    LABEL_FONT = ("times new roman", 13, "bold")
+    ENTRY_FONT = ("times new roman", 14)
+    CHECKBOX_FONT = ("times new roman", 12)
+    BUTTON_FONT = ("times new roman", 14, "bold")
 
     def __init__(
         self,
@@ -64,7 +71,13 @@ class LoginView(tk.Frame):
             )
 
         form_card = tk.Frame(self, bg=self.CARD_BG, bd=0)
-        form_card.place(relx=0.5, rely=0.5, anchor="center", width=540, height=320)
+        form_card.place(
+            relx=0.5,
+            rely=0.5,
+            anchor="center",
+            width=self.CARD_WIDTH,
+            height=self.CARD_HEIGHT,
+        )
 
         body = tk.Frame(form_card, bg=self.CARD_BG)
         body.pack(fill="both", expand=True)
@@ -74,51 +87,51 @@ class LoginView(tk.Frame):
             text="Đăng nhập",
             fg=self.TITLE_COLOR,
             bg=self.CARD_BG,
-            font=("times new roman", 18, "bold"),
-        ).place(relx=0.5, y=40, anchor="center")
+            font=self.TITLE_FONT,
+        ).place(relx=0.5, y=52, anchor="center")
 
         tk.Label(
             body,
             text="Email",
             bg=self.CARD_BG,
             fg="#5B5B5B",
-            font=("times new roman", 11, "bold"),
-        ).place(x=160, y=86)
+            font=self.LABEL_FONT,
+        ).place(x=188, y=105)
 
         username_entry = tk.Entry(
             body,
             textvariable=self.username_var,
-            width=20,
-            font=("times new roman", 12),
+            width=24,
+            font=self.ENTRY_FONT,
             bd=1,
             relief="solid",
             highlightthickness=1,
             highlightbackground="#B8B8B8",
             highlightcolor="#47B7E3",
         )
-        username_entry.place(x=158, y=112, width=170, height=26)
+        username_entry.place(x=186, y=135, width=265, height=34)
 
         tk.Label(
             body,
             text="Mật khẩu",
             bg=self.CARD_BG,
             fg="#5B5B5B",
-            font=("times new roman", 11, "bold"),
-        ).place(x=160, y=154)
+            font=self.LABEL_FONT,
+        ).place(x=188, y=185)
 
         password_entry = tk.Entry(
             body,
             textvariable=self.password_var,
             show="*",
-            width=20,
-            font=("times new roman", 12),
+            width=24,
+            font=self.ENTRY_FONT,
             bd=1,
             relief="solid",
             highlightthickness=1,
             highlightbackground="#B8B8B8",
             highlightcolor="#47B7E3",
         )
-        password_entry.place(x=158, y=180, width=170, height=26)
+        password_entry.place(x=186, y=215, width=265, height=34)
 
         tk.Checkbutton(
             body,
@@ -129,10 +142,10 @@ class LoginView(tk.Frame):
             activebackground=self.CARD_BG,
             activeforeground="#2C2C2C",
             selectcolor=self.CARD_BG,
-            font=("times new roman", 10),
+            font=self.CHECKBOX_FONT,
             highlightthickness=0,
             bd=0,
-        ).place(x=155, y=220)
+        ).place(x=183, y=267)
 
         login_button = tk.Button(
             body,
@@ -142,13 +155,13 @@ class LoginView(tk.Frame):
             fg="white",
             activebackground="#2C7AD9",
             activeforeground="white",
-            font=("times new roman", 12, "bold"),
+            font=self.BUTTON_FONT,
             bd=0,
-            padx=14,
-            pady=4,
+            padx=18,
+            pady=8,
             cursor="hand2",
         )
-        login_button.place(x=160, y=260, width=140, height=34)
+        login_button.place(x=186, y=315, width=170, height=42)
 
         self.bind_all("<Return>", lambda _: self._handle_login_click())
         username_entry.focus_set()
