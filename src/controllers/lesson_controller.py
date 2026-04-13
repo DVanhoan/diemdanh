@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any
+from src.services.lesson_service import LessonService
 from src.views.lesson_view import lessonView
 
 class LessonController:
@@ -7,6 +8,7 @@ class LessonController:
         self.app = app
         self.router = router
         self.view: lessonView | None = None
+        self.service = LessonService()
 
     def build_view(self) -> lessonView:
         self.view = lessonView(
@@ -24,9 +26,25 @@ class LessonController:
     def on_show(self, **kwargs: Any) -> None:
         pass  # Load dữ liệu sau
 
+    def _load_all(self) -> None:
+            try:
+                lessons = self.service.get_all()
+                self.view.set_table_rows(lessons)
+            except Exception as e:
+                self.view.set_table_rows([])
     # --- Placeholder callbacks (làm chức năng sau) ---
-    def _on_save(self, *args):
-        return True, "Chưa có chức năng"
+    def _on_save(self, start_time, end_time, date, teacher_id, subject_id):
+            if not all([start_time, end_time, date, teacher_id, subject_id]):
+                return False, "Vui lòng nhập đầy đủ thông tin!"
+            try:
+                self.service.create(start_time, end_time, date,
+                                    int(teacher_id), int(subject_id))
+                self._load_all()
+                return True, "Thêm buổi học thành công!"
+            except ValueError:
+                return False, "ID giáo viên và ID môn học phải là số!"
+            except Exception as e:
+                return False, f"Lỗi: {e}"
 
     def _on_update(self, *args):
         return True, "Chưa có chức năng"

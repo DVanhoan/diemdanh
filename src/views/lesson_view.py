@@ -420,12 +420,6 @@ class lessonView(tk.Frame):
         self.lesson_tree.bind("<<TreeviewSelect>>", self._on_select_row)
 
 
-    def _handle_search(self) -> None:
-        pass  # làm sau
-
-    def _handle_all(self) -> None:
-        pass  # làm sau
-
     def _on_select_row(self, _: object) -> None:
         sel = self.lesson_tree.selection()
         if not sel:
@@ -446,13 +440,67 @@ class lessonView(tk.Frame):
                 l.lesson_id, l.start_time, l.end_time,
                 l.date, l.teacher_id, l.subject_id
             ))
-    def _handle_save(self) -> None: 
-        pass
-    def _handle_delete(self) -> None: 
-        pass
-    def _handle_update(self) -> None: 
-        pass
-    def _handle_refresh(self) -> None: 
-        pass
 
+    
+    def _handle_save(self) -> None:
+        ok, msg = self.on_save(
+            self.start_time_var.get().strip(),
+            self.end_time_var.get().strip(),
+            self.date_var.get().strip(),
+            self.teacher_id_var.get().strip(),
+            self.subject_id_var.get().strip(),
+        )
+        self._show_result(ok, msg)
+        if ok:
+            self._clear_form()
 
+    def _handle_update(self) -> None:
+        ok, msg = self.on_update(
+            self.lesson_id_var.get().strip(),
+            self.start_time_var.get().strip(),
+            self.end_time_var.get().strip(),
+            self.date_var.get().strip(),
+            self.teacher_id_var.get().strip(),
+            self.subject_id_var.get().strip(),
+        )
+        self._show_result(ok, msg)
+
+    def _handle_delete(self) -> None:
+        ok, msg = self.on_delete(self.lesson_id_var.get().strip())
+        self._show_result(ok, msg)
+        if ok:
+            self._clear_form()
+
+    def _handle_refresh(self) -> None:
+        ok, msg = self.on_refresh()
+        self._show_result(ok, msg)
+        self._clear_form()
+
+    def _handle_search(self) -> None:
+        field = self.search_field_var.get()
+        keyword = self.search_var.get().strip()
+        ok, msg = self.on_search(field, keyword)
+        if msg:
+            self._show_result(ok, msg)
+
+    def _handle_all(self) -> None:
+        self.search_var.set("")
+        ok, msg = self.on_search("", "")
+        if msg:
+            self._show_result(ok, msg)
+
+    def _clear_form(self) -> None:
+        self.lesson_id_var.set("")
+        self.start_time_var.set("")
+        self.end_time_var.set("")
+        self.date_var.set("26/04/2024")
+        self.teacher_id_var.set("")
+        self.teacher_name_var.set("")
+        self.subject_id_var.set("")
+        self.subject_name_var.set("")
+
+    def _show_result(self, ok: bool, msg: str) -> None:
+        if ok:
+            messagebox.showinfo("Thông báo", msg)
+        else:
+            messagebox.showerror("Lỗi", msg)
