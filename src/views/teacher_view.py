@@ -12,7 +12,7 @@ except Exception:  # noqa: BLE001
     Image = None
     ImageTk = None
 
-from models.teacher_model import TeacherModel
+from src.models.teacher_model import TeacherModel
 
 
 class TeacherView(tk.Frame):

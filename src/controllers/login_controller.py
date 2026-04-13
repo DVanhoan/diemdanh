@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.views.login_view import LoginView
-from services.teacher_service import TeacherService
+from src.services.teacher_service import TeacherService
 
 
 class LoginController:

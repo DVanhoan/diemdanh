@@ -9,6 +9,7 @@ from src.controllers.login_controller import LoginController
 from src.controllers.dashboard_controller import DashboardController
 from src.controllers.student_controller import StudentController
 from src.controllers.teacher_controller import TeacherController
+from src.controllers.lesson_controller import LessonController
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,14 @@ class Router:
             self.app.set_view(view)
             controller.on_show(**payload)
             return
+        if name == "lesson" : 
+            controller = LessonController(self.app, self)
+            view = controller.build_view()
+            self.app.set_view(view)
+            controller.on_show(**payload)
+            return
+            
+
 
 
         raise ValueError(f"Unknown route: {name}")

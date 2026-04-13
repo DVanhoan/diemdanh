@@ -3,7 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from typing import Optional
-from db.database import DatabaseConnection
+from src.db.database import DatabaseConnection
 
 
 class App:

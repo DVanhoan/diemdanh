@@ -1,5 +1,5 @@
-from db.database import DatabaseConnection
-from models.student_model import StudentModel
+from src.db.database import DatabaseConnection
+from src.models.student_model import StudentModel
 
 
 class StudentService:

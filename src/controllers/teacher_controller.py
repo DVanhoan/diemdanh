@@ -4,9 +4,9 @@ from typing import Any
 
 from tkinter import messagebox
 
-from models.teacher_model import TeacherModel
-from services.teacher_service import TeacherService
-from views.teacher_view import TeacherView
+from src.models.teacher_model import TeacherModel
+from src.services.teacher_service import TeacherService
+from src.views.teacher_view import TeacherView
 
 
 class TeacherController:

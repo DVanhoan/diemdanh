@@ -4,11 +4,11 @@ from typing import Any
 
 from tkinter import messagebox
 
-from models.student_model import StudentModel
-from src.services.face_dataset_service import FaceDatasetService
-from src.services.face_training_service import FaceTrainingService
+from src.models.student_model import StudentModel
+# from src.services.face_dataset_service import FaceDatasetService
+# from src.services.face_training_service import FaceTrainingService
 from src.views.student_view import StudentView
-from services.student_service import StudentService
+from src.services.student_service import StudentService
 
 
 class StudentController:
@@ -16,8 +16,8 @@ class StudentController:
         self.app = app
         self.router = router
         self.service = StudentService()
-        self.dataset_service = FaceDatasetService(self.app.assets_dir, self.app.project_root)
-        self.training_service = FaceTrainingService(self.app.project_root)
+        # self.dataset_service = FaceDatasetService(self.app.assets_dir, self.app.project_root)
+        # self.training_service = FaceTrainingService(self.app.project_root)
         self.view: StudentView | None = None
 
     def build_view(self) -> StudentView:

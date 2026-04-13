@@ -50,10 +50,8 @@ class DashboardController:
     def on_teachers(self) -> None:
         self.router.show("teachers")
 
-    @staticmethod
-    def on_lessons() -> None:
-        messagebox.showinfo("Buổi học", "Chức năng quản lý buổi học sẽ được nối ở bước tiếp theo.")
-
+    def on_lessons(self) -> None:
+        self.router.show("lesson")
     @staticmethod
     def on_view_images() -> None:
         messagebox.showinfo("Xem ảnh", "Chức năng xem ảnh mẫu sẽ được nối ở bước tiếp theo.")

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from mysql.connector import Error
 
-from db.database import DatabaseConnection
-from models.teacher_model import TeacherModel
+from src.db.database import DatabaseConnection
+from src.models.teacher_model import TeacherModel
 
 
 class TeacherService:
